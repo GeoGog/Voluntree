@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voluntree — Log Hours</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="page-sm">
+  <div class="page-header fade-up">
+    <h1>Log volunteer hours ⏱</h1>
+    <p>Track the time you give back to your community and the environment.</p>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-row fade-up fade-up-1" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stat-card">
+      <div class="stat-label">Total hours</div>
+      <div class="stat-value" id="lh-total">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">This month</div>
+      <div class="stat-value" id="lh-month">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Orgs helped</div>
+      <div class="stat-value" id="lh-orgs">0</div>
+    </div>
+  </div>
+
+  <div id="log-msg" class="msg hidden" style="margin-bottom:1rem"></div>
+
+  <!-- Log form -->
+  <div class="post-form-card fade-up fade-up-2">
+    <div class="form-section-title">Log a shift</div>
+    <div class="input-group">
+      <label>Organization / Opportunity *</label>
+      <input type="text" id="lh-org" placeholder="e.g. Atlanta Community Food Bank"/>
+    </div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label>Date *</label>
+        <input type="date" id="lh-date"/>
+      </div>
+      <div class="input-group">
+        <label>Category</label>
+        <select id="lh-cat">
+          <option value="">Select category</option>
+          <option value="reforestation">🌲 Reforestation</option>
+          <option value="cleanup">♻️ Cleanup</option>
+          <option value="wildlife">🦋 Wildlife</option>
+          <option value="education">📚 Eco-Education</option>
+          <option value="conservation">🌊 Conservation</option>
+          <option value="urban">🏙️ Urban Green</option>
+          <option value="community">🤝 Community</option>
+          <option value="other">⭐ Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label>Hours *</label>
+        <input type="number" id="lh-hours" min="0" max="24" step="0.5" placeholder="e.g. 3"/>
+      </div>
+      <div class="input-group">
+        <label>Minutes</label>
+        <select id="lh-mins">
+          <option value="0">0 min</option>
+          <option value="15">15 min</option>
+          <option value="30">30 min</option>
+          <option value="45">45 min</option>
+        </select>
+      </div>
+    </div>
+    <div class="input-group">
+      <label>Notes <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+      <textarea id="lh-notes" rows="3" placeholder="What did you do? Any memorable moments or impact you noticed?"></textarea>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="logHours()">🌱 Save entry</button>
+  </div>
+
+  <!-- Past entries -->
+  <div class="section fade-up fade-up-3">
+    <div class="section-header">
+      <h3 class="section-title">Your entries</h3>
+    </div>
+    <div id="entries-list"><div class="loading">Loading…</div></div>
+  </div>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+const catEmoji = { reforestation:'🌲', cleanup:'♻️', wildlife:'🦋', education:'📚', conservation:'🌊', urban:'🌿', community:'🤝', other:'⭐' };
+
+async function logHours() {
+  const org   = document.getElementById('lh-org').value.trim();
+  const date  = document.getElementById('lh-date').value;
+  const hrs   = parseFloat(document.getElementById('lh-hours').value) || 0;
+  const mins  = parseInt(document.getElementById('lh-mins').value) || 0;
+  const cat   = document.getElementById('lh-cat').value;
+  const notes = document.getElementById('lh-notes').value.trim();
+  const msgEl = document.getElementById('log-msg');
+
+  if (!org || !date || (!hrs && !mins)) {
+    msgEl.textContent = 'Please fill in the organization, date, and time.';
+    msgEl.className = 'msg msg-error'; return;
+  }
+
+  const total = Math.round((hrs + mins/60) * 100) / 100;
+  const { error } = await supabase.from('volunteer_hours').insert({ user_id: currentUser.id, org, date, hours: total, category: cat||null, notes: notes||null });
+  if (error) { msgEl.textContent = error.message; msgEl.className = 'msg msg-error'; return; }
+
+  msgEl.textContent = `✅ Logged ${hrs > 0 ? hrs+'h' : ''}${mins > 0 ? ' '+mins+'m' : ''} at ${org}`;
+  msgEl.className = 'msg msg-success';
+  document.getElementById('lh-org').value = '';
+  document.getElementById('lh-hours').value = '';
+  document.getElementById('lh-mins').value = '0';
+  document.getElementById('lh-notes').value = '';
+  loadEntries();
+  loadStats();
+}
+
+async function loadStats() {
+  const { data } = await supabase.from('volunteer_hours').select('hours, org, date').eq('user_id', currentUser.id);
+  const total = data?.reduce((s,r) => s+parseFloat(r.hours||0),0) || 0;
+  const now = new Date(); const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thisMonth = data?.filter(r => new Date(r.date) >= monthStart).reduce((s,r) => s+parseFloat(r.hours||0),0) || 0;
+  const orgs = new Set(data?.map(r=>r.org)||[]).size;
+  document.getElementById('lh-total').textContent = Math.round(total*10)/10;
+  document.getElementById('lh-month').textContent = Math.round(thisMonth*10)/10;
+  document.getElementById('lh-orgs').textContent  = orgs;
+}
+
+async function loadEntries() {
+  const { data } = await supabase.from('volunteer_hours').select('*').eq('user_id', currentUser.id).order('date',{ascending:false});
+  const container = document.getElementById('entries-list');
+  if (!data || !data.length) { container.innerHTML = `<div class="empty-state"><span class="empty-icon">🌱</span><h3>No entries yet</h3><p>Log your first shift above!</p></div>`; return; }
+  container.innerHTML = data.map(r => `
+    <div class="hours-row" style="margin-bottom:8px">
+      <div class="hours-num">${r.hours}h</div>
+      <div class="hours-info">
+        <div class="hours-org">${r.org} ${r.category ? (catEmoji[r.category]||'') : ''}</div>
+        <div class="hours-date">${new Date(r.date).toLocaleDateString('en-US',{weekday:'short',month:'long',day:'numeric',year:'numeric'})}</div>
+        ${r.notes ? `<div class="hours-note">"${r.notes}"</div>` : ''}
+      </div>
+      <button onclick="deleteEntry('${r.id}')" style="color:var(--text-muted);background:none;border:none;cursor:pointer;font-size:20px;padding:4px;line-height:1" title="Delete">×</button>
+    </div>`).join('');
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Delete this entry?')) return;
+  await supabase.from('volunteer_hours').delete().eq('id', id);
+  loadEntries(); loadStats();
+}
+
+document.getElementById('lh-date').valueAsDate = new Date();
+
+const _iv = setInterval(() => {
+  if (typeof currentUser !== 'undefined' && currentUser) { clearInterval(_iv); loadStats(); loadEntries(); }
+}, 80);
+</script>
+</body>
+</html>

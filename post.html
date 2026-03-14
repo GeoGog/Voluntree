@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voluntree — Post Opportunity</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="page-sm">
+  <div class="page-header fade-up">
+    <h1>Post an opportunity 📋</h1>
+    <p>Share your volunteering opportunity with the Voluntree community.</p>
+  </div>
+
+  <div id="post-msg" class="msg hidden"></div>
+
+  <div class="post-form-card fade-up fade-up-1">
+
+    <!-- Basic info -->
+    <div class="form-section-title">Basic information</div>
+    <div class="input-group">
+      <label>Opportunity title *</label>
+      <input type="text" id="p-title" placeholder="e.g. Riverside Park Tree Planting Day"/>
+    </div>
+    <div class="input-group">
+      <label>Category *</label>
+      <select id="p-category">
+        <option value="">Select a category</option>
+        <option value="reforestation">🌲 Reforestation</option>
+        <option value="cleanup">♻️ Cleanup</option>
+        <option value="wildlife">🦋 Wildlife</option>
+        <option value="education">📚 Eco-Education</option>
+        <option value="conservation">🌊 Conservation</option>
+        <option value="urban">🏙️ Urban Green</option>
+        <option value="community">🤝 Community</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>Description *</label>
+      <textarea id="p-desc" rows="5" placeholder="Describe the opportunity in detail. What will volunteers do? What impact will it have? What should they bring?"></textarea>
+    </div>
+    <div class="input-group">
+      <label>Additional information <span style="font-weight:400;color:var(--text-muted)">(parking, what to wear, etc.)</span></label>
+      <textarea id="p-additional" rows="2" placeholder="e.g. Parking available at Main Street lot. Wear closed-toe shoes."></textarea>
+    </div>
+
+    <!-- Location & time -->
+    <div class="form-section-title" style="margin-top:8px">Location & time</div>
+    <div class="input-group">
+      <label>Location / Address *</label>
+      <input type="text" id="p-location" placeholder="e.g. 400 Park Drive, Atlanta, GA 30306"/>
+    </div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label>Latitude <span style="font-weight:400;color:var(--text-muted)">(for map pin)</span></label>
+        <input type="number" id="p-lat" placeholder="e.g. 33.7886" step="any"/>
+      </div>
+      <div class="input-group">
+        <label>Longitude</label>
+        <input type="number" id="p-lng" placeholder="e.g. -84.3733" step="any"/>
+      </div>
+    </div>
+    <div class="input-group">
+      <div style="font-size:12px;color:var(--text-muted)">💡 Find your lat/lng at <a href="https://www.latlong.net" target="_blank" style="color:var(--canopy)">latlong.net</a></div>
+    </div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label>Date *</label>
+        <input type="date" id="p-date"/>
+      </div>
+      <div class="input-group">
+        <label>Start time *</label>
+        <input type="time" id="p-time-start"/>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label>End time</label>
+        <input type="time" id="p-time-end"/>
+      </div>
+      <div class="input-group">
+        <label>Is this recurring?</label>
+        <select id="p-recurring">
+          <option value="no">One-time event</option>
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Bi-weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Volunteer requirements -->
+    <div class="form-section-title" style="margin-top:8px">Volunteer requirements</div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label>Volunteers needed *</label>
+        <input type="number" id="p-vol-max" min="1" placeholder="e.g. 20"/>
+      </div>
+      <div class="input-group">
+        <label>Minimum age</label>
+        <input type="number" id="p-age" min="5" max="99" placeholder="e.g. 16 (leave blank if none)"/>
+      </div>
+    </div>
+    <div class="input-group">
+      <label>Skills required <span style="font-weight:400;color:var(--text-muted)">(comma-separated)</span></label>
+      <input type="text" id="p-skills" placeholder="e.g. Physical fitness, Gardening, Driving"/>
+      <span class="hint">Leave blank if no special skills needed.</span>
+    </div>
+    <div class="input-group">
+      <label>What to bring</label>
+      <input type="text" id="p-bring" placeholder="e.g. Gloves, water bottle, sunscreen"/>
+    </div>
+
+    <!-- Contact & urgency -->
+    <div class="form-section-title" style="margin-top:8px">Contact & visibility</div>
+    <div class="input-group">
+      <label>Organization name *</label>
+      <input type="text" id="p-org" placeholder="Your organization's name"/>
+    </div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label>Contact email *</label>
+        <input type="email" id="p-email" placeholder="volunteer@yourorg.org"/>
+      </div>
+      <div class="input-group">
+        <label>Contact phone</label>
+        <input type="tel" id="p-phone" placeholder="+1 (555) 000-0000"/>
+      </div>
+    </div>
+    <div class="input-group">
+      <label>Website / sign-up link <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+      <input type="url" id="p-website" placeholder="https://yourorg.org/volunteer"/>
+    </div>
+    <div class="input-group">
+      <label>Urgency level</label>
+      <select id="p-urgency">
+        <option value="low">🟢 Flexible — no rush</option>
+        <option value="medium" selected>🟡 Active — spots filling</option>
+        <option value="high">🔴 Urgent — need volunteers ASAP</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary btn-full btn-lg" onclick="postOpportunity()">🌱 Post opportunity</button>
+  </div>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+async function postOpportunity() {
+  const get = id => document.getElementById(id).value.trim();
+  const title    = get('p-title');
+  const category = get('p-category');
+  const desc     = get('p-desc');
+  const location = get('p-location');
+  const date     = get('p-date');
+  const tStart   = get('p-time-start');
+  const orgName  = get('p-org');
+  const email    = get('p-email');
+  const volMax   = parseInt(get('p-vol-max')) || 0;
+  const msgEl    = document.getElementById('post-msg');
+
+  if (!title || !category || !desc || !location || !date || !tStart || !orgName || !email || !volMax) {
+    msgEl.textContent = 'Please fill in all required fields (*).';
+    msgEl.className = 'msg msg-error';
+    msgEl.scrollIntoView({ behavior:'smooth' });
+    return;
+  }
+
+  const skillsRaw = get('p-skills');
+  const skills = skillsRaw ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const lat  = parseFloat(get('p-lat')) || null;
+  const lng  = parseFloat(get('p-lng')) || null;
+
+  const { error } = await supabase.from('opportunities').insert({
+    user_id:            currentUser.id,
+    title,
+    category,
+    description:        desc,
+    additional_info:    get('p-additional') || null,
+    location,
+    lat, lng,
+    date,
+    time_start:         tStart,
+    time_end:           get('p-time-end') || null,
+    recurring:          get('p-recurring'),
+    volunteers_needed:  volMax,
+    volunteers_current: 0,
+    age_min:            parseInt(get('p-age')) || null,
+    skills_required:    skills,
+    what_to_bring:      get('p-bring') || null,
+    org_name:           orgName,
+    contact_email:      email,
+    contact_phone:      get('p-phone') || null,
+    website:            get('p-website') || null,
+    urgency:            get('p-urgency'),
+    status:             'active',
+    image_emoji:        categoryEmoji(category)
+  });
+
+  if (error) {
+    msgEl.textContent = error.message;
+    msgEl.className = 'msg msg-error';
+    msgEl.scrollIntoView({ behavior:'smooth' });
+    return;
+  }
+
+  msgEl.textContent = '✅ Opportunity posted! Redirecting to your dashboard…';
+  msgEl.className = 'msg msg-success';
+  msgEl.scrollIntoView({ behavior:'smooth' });
+  setTimeout(() => window.location.href = 'dashboard.html', 1800);
+}
+
+function categoryEmoji(c) {
+  const m = { reforestation:'🌲', cleanup:'♻️', wildlife:'🦋', education:'📚', conservation:'🌊', urban:'🌿', community:'🤝' };
+  return m[c] || '🌱';
+}
+
+// Only orgs can post
+const _iv = setInterval(() => {
+  if (typeof currentProfile !== 'undefined') {
+    clearInterval(_iv);
+    if (currentProfile?.role !== 'org') {
+      document.querySelector('.post-form-card').innerHTML = `
+        <div class="empty-state">
+          <span class="empty-icon">🏢</span>
+          <h3>Organizations only</h3>
+          <p>Only organization accounts can post opportunities.</p>
+          <a href="explore.html" class="btn btn-primary" style="margin-top:1rem">Back to explore</a>
+        </div>`;
+    }
+  }
+}, 80);
+</script>
+</body>
+</html>

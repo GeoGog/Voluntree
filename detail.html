@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voluntree — Opportunity Detail</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="page" id="detail-root">
+  <div class="loading">Loading opportunity…</div>
+</div>
+
+<!-- Apply modal -->
+<div id="apply-modal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Apply to volunteer</h2>
+      <button class="modal-close" onclick="closeApply()">×</button>
+    </div>
+    <div id="apply-opp-title" style="font-size:15px;color:var(--text-soft)"></div>
+    <div class="modal-divider"></div>
+    <div class="input-group">
+      <label>Why do you want to join this opportunity?</label>
+      <textarea id="apply-msg" placeholder="Tell the organizer about yourself and your motivation…" rows="4"></textarea>
+    </div>
+    <div class="input-group">
+      <label>Your availability</label>
+      <input type="text" id="apply-avail" placeholder="e.g. Weekends, Mon/Wed evenings…"/>
+    </div>
+    <div class="input-group">
+      <label>Phone <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+      <input type="tel" id="apply-phone" placeholder="+1 (555) 000-0000"/>
+    </div>
+    <div id="apply-out" class="msg hidden"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeApply()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitApply()">Send application</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+const SAMPLES = {
+  s1: { id:'s1', title:'Piedmont Park Tree Planting', org_name:'Atlanta Urban Forest', category:'reforestation', location:'Piedmont Park, Atlanta, GA', date:'2026-03-28', time_start:'09:00', time_end:'13:00', volunteers_needed:20, volunteers_current:8, age_min:14, skills_required:['Physical fitness','Teamwork'], description:`Join us for a full-day tree planting event in Piedmont Park!\n\nWe'll be planting 200 native trees including red maples, tulip poplars, and dogwoods to restore the urban forest canopy. This is a great opportunity to get your hands dirty and make a lasting impact on Atlanta's green spaces.\n\nAll equipment, gloves, and tools are provided. Wear clothes you don't mind getting dirty. Lunch and water will be provided for all participants.`, urgency:'high', image_emoji:'🌲', contact_email:'info@atlantaurbanforest.org', contact_phone:'(404) 555-0110', additional_info:'Parking available at 10th Street lot. Meet at the main fountain.' },
+};
+
+const params = new URLSearchParams(window.location.search);
+const oppId  = params.get('id');
+let opp = null;
+let saved = false;
+
+async function loadOpp() {
+  // Try Supabase first
+  if (oppId && !oppId.startsWith('s')) {
+    const { data } = await supabase.from('opportunities').select('*, profiles(full_name, email)').eq('id', oppId).single();
+    if (data) opp = data;
+  }
+  if (!opp) opp = SAMPLES[oppId] || SAMPLES['s1'];
+
+  // Check if saved
+  if (currentUser) {
+    const { data } = await supabase.from('saved_opportunities').select('id').eq('user_id', currentUser.id).eq('opportunity_id', oppId).maybeSingle();
+    saved = !!data;
+  }
+
+  renderDetail();
+}
+
+function renderDetail() {
+  if (!opp) {
+    document.getElementById('detail-root').innerHTML = `<div class="empty-state"><span class="empty-icon">🔍</span><h3>Opportunity not found</h3><a href="explore.html" class="btn btn-primary">Back to explore</a></div>`;
+    return;
+  }
+
+  const spotsLeft = Math.max(0, (opp.volunteers_needed||0) - (opp.volunteers_current||0));
+  const pct = Math.round(((opp.volunteers_current||0) / Math.max(1, opp.volunteers_needed||1)) * 100);
+  const urgencyLabel = opp.urgency === 'high' ? '<span class="chip chip-red">🔴 Urgent</span>' : opp.urgency === 'medium' ? '<span class="chip chip-amber">🟡 Active</span>' : '<span class="chip chip-green">🟢 Flexible</span>';
+
+  document.getElementById('detail-root').innerHTML = `
+    <div style="margin-bottom:1rem">
+      <a href="explore.html" style="color:var(--text-soft);font-size:14px;display:inline-flex;align-items:center;gap:6px">← Back to explore</a>
+    </div>
+
+    <div class="detail-hero">${opp.image_emoji || '🌿'}</div>
+
+    <div class="detail-grid">
+      <div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          ${urgencyLabel}
+          <span class="chip chip-green">${opp.category || 'Environment'}</span>
+          ${(opp.skills_required||[]).map(s=>`<span class="chip chip-bark">${s}</span>`).join('')}
+        </div>
+
+        <h1 style="font-size:28px;color:var(--forest);margin-bottom:6px">${opp.title}</h1>
+        <p style="font-size:15px;color:var(--moss);font-weight:600;margin-bottom:1.5rem">by ${opp.org_name || opp.profiles?.full_name || 'Organization'}</p>
+
+        <div style="font-size:15px;color:var(--text-mid);line-height:1.8;white-space:pre-wrap;margin-bottom:1.5rem">${opp.description || ''}</div>
+
+        ${opp.additional_info ? `
+        <div style="background:var(--dew);border-radius:var(--r-md);padding:1rem 1.2rem;margin-bottom:1.5rem;border-left:3px solid var(--leaf)">
+          <div style="font-size:12px;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Additional information</div>
+          <div style="font-size:14px;color:var(--text-mid)">${opp.additional_info}</div>
+        </div>` : ''}
+
+        <!-- Volunteer progress -->
+        <div style="background:#fff;border:1.5px solid var(--stone);border-radius:var(--r-md);padding:1.1rem 1.25rem;margin-bottom:1rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-size:14px;font-weight:600;color:var(--text-dark)">Volunteer spots</span>
+            <span style="font-size:14px;color:var(--text-soft)">${opp.volunteers_current||0} / ${opp.volunteers_needed||'?'} filled</span>
+          </div>
+          <div style="background:var(--stone);border-radius:999px;height:8px;overflow:hidden">
+            <div style="background:var(--leaf);height:100%;width:${pct}%;border-radius:999px;transition:width .5s ease"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px">${spotsLeft} spot${spotsLeft !== 1 ? 's' : ''} remaining</div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="detail-sidebar">
+        <div class="sidebar-card">
+          <h4>Details</h4>
+          <div class="info-row"><span class="info-label">📍 Location</span><span class="info-val">${opp.location||'TBD'}</span></div>
+          <div class="info-row"><span class="info-label">📅 Date</span><span class="info-val">${opp.date ? new Date(opp.date).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : 'TBD'}</span></div>
+          <div class="info-row"><span class="info-label">🕐 Time</span><span class="info-val">${opp.time_start||''}${opp.time_end ? ' – '+opp.time_end : ''}</span></div>
+          ${opp.age_min ? `<div class="info-row"><span class="info-label">🔞 Min age</span><span class="info-val">${opp.age_min}+ years</span></div>` : ''}
+          <div class="info-row"><span class="info-label">👥 Spots</span><span class="info-val">${spotsLeft} of ${opp.volunteers_needed||'?'} left</span></div>
+        </div>
+
+        ${(opp.skills_required||[]).length ? `
+        <div class="sidebar-card">
+          <h4>Skills needed</h4>
+          <div class="skills-list">${opp.skills_required.map(s=>`<span class="chip chip-bark">${s}</span>`).join('')}</div>
+        </div>` : ''}
+
+        <div class="sidebar-card">
+          <h4>Contact</h4>
+          ${opp.contact_email ? `<div class="info-row"><span class="info-label">✉️ Email</span><a href="mailto:${opp.contact_email}" class="info-val" style="color:var(--canopy)">${opp.contact_email}</a></div>` : ''}
+          ${opp.contact_phone ? `<div class="info-row"><span class="info-label">📞 Phone</span><span class="info-val">${opp.contact_phone}</span></div>` : ''}
+        </div>
+
+        <button class="btn btn-primary btn-full btn-lg" onclick="openApply()">🙋 Apply to volunteer</button>
+        <button id="save-btn" class="btn btn-outline btn-full" onclick="toggleSave()">${saved ? '🌿 Saved' : '🤍 Save opportunity'}</button>
+      </div>
+    </div>`;
+}
+
+function openApply() {
+  document.getElementById('apply-opp-title').textContent = opp?.title || '';
+  document.getElementById('apply-out').className = 'msg hidden';
+  document.getElementById('apply-modal').classList.remove('hidden');
+}
+function closeApply() { document.getElementById('apply-modal').classList.add('hidden'); }
+
+async function submitApply() {
+  const msg   = document.getElementById('apply-msg').value.trim();
+  const avail = document.getElementById('apply-avail').value.trim();
+  const phone = document.getElementById('apply-phone').value.trim();
+  const out   = document.getElementById('apply-out');
+  if (!msg) { out.textContent='Please write a short message.'; out.className='msg msg-error'; return; }
+  const { error } = await supabase.from('applications').insert({ opportunity_id: oppId, volunteer_id: currentUser.id, message: msg, availability: avail, phone, status:'pending' });
+  if (error) { out.textContent = error.message; out.className='msg msg-error'; return; }
+  out.textContent = '✅ Application sent!'; out.className = 'msg msg-success';
+  setTimeout(closeApply, 2000);
+}
+
+async function toggleSave() {
+  const btn = document.getElementById('save-btn');
+  if (saved) {
+    await supabase.from('saved_opportunities').delete().eq('user_id',currentUser.id).eq('opportunity_id',oppId);
+    saved = false; btn.textContent = '🤍 Save opportunity'; btn.classList.remove('btn-primary'); btn.classList.add('btn-outline');
+  } else {
+    await supabase.from('saved_opportunities').insert({ user_id: currentUser.id, opportunity_id: oppId });
+    saved = true; btn.textContent = '🌿 Saved'; btn.classList.add('btn-primary'); btn.classList.remove('btn-outline');
+  }
+}
+
+const _iv = setInterval(() => { if (typeof currentUser !== 'undefined') { clearInterval(_iv); loadOpp(); } }, 80);
+</script>
+</body>
+</html>

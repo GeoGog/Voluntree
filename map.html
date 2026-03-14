@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voluntree — Map View</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    #map { width:100%; height: calc(100vh - 60px - 70px); border-radius: var(--r-xl); border: 1.5px solid var(--stone); }
+    .map-sidebar { width: 340px; flex-shrink: 0; overflow-y: auto; max-height: calc(100vh - 60px - 70px); }
+    .map-layout { display: flex; gap: 16px; align-items: flex-start; }
+    .map-opp-card { padding: 12px 14px; border: 1.5px solid var(--stone); border-radius: var(--r-md); cursor: pointer; transition: all .15s; background:#fff; margin-bottom: 8px; }
+    .map-opp-card:hover, .map-opp-card.active { border-color: var(--canopy); background: var(--dew); }
+    .map-opp-title { font-weight: 600; font-size: 14px; color: var(--text-dark); margin-bottom: 3px; }
+    .map-opp-meta  { font-size: 12px; color: var(--text-muted); }
+    @media (max-width: 700px) { .map-layout { flex-direction: column-reverse; } .map-sidebar { width: 100%; max-height: 220px; } #map { height: 320px; } }
+  </style>
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="page" style="padding-top:1rem;padding-bottom:1rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 style="font-size:22px;color:var(--forest)">🗺 Opportunities near you</h1>
+      <p style="font-size:13px;color:var(--text-muted)" id="map-count">Loading…</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="map-search" placeholder="Filter…" style="max-width:200px;padding:8px 12px" oninput="filterMapCards()"/>
+      <a href="explore.html" class="btn btn-ghost btn-sm">☰ List view</a>
+    </div>
+  </div>
+
+  <div class="map-layout">
+    <div id="map"></div>
+    <div class="map-sidebar" id="map-sidebar">
+      <div class="loading">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+// Atlanta-area coordinates for sample pins
+const SAMPLES = [
+  { id:'s1', title:'Piedmont Park Tree Planting',      org_name:'Atlanta Urban Forest',     lat:33.7886, lng:-84.3733, urgency:'high',   date:'2026-03-28', category:'reforestation' },
+  { id:'s2', title:'Chattahoochee River Cleanup',      org_name:'Chattahoochee Riverkeeper', lat:33.8650, lng:-84.4700, urgency:'medium', date:'2026-04-05', category:'cleanup' },
+  { id:'s3', title:'Butterfly Garden Restoration',     org_name:'Georgia Wildlife Federation',lat:33.8073, lng:-84.1704, urgency:'low',    date:'2026-04-12', category:'wildlife' },
+  { id:'s4', title:'Environmental Education at Schools',org_name:'EcoTeach Atlanta',          lat:33.7490, lng:-84.3880, urgency:'high',   date:'2026-04-15', category:'education' },
+  { id:'s5', title:'Community Garden Build',           org_name:'Westside Urban Farm',       lat:33.7600, lng:-84.4300, urgency:'medium', date:'2026-04-19', category:'urban' },
+  { id:'s6', title:'Marine Conservation Data Entry',   org_name:'Ocean Atlanta',             lat:33.7550, lng:-84.3900, urgency:'medium', date:'2026-04-22', category:'conservation' },
+];
+
+let allOpps = [];
+let map, markers = {};
+
+async function initMap() {
+  map = L.map('map').setView([33.7900, -84.3850], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(map);
+
+  // Try to get user location
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+      L.circle([pos.coords.latitude, pos.coords.longitude], { radius: 200, color: '#3d7a52', fillColor: '#8cbf9a', fillOpacity: 0.3 }).addTo(map).bindPopup('📍 You are here');
+    });
+  }
+
+  // Load opps
+  const { data } = await supabase.from('opportunities').select('*').eq('status','active');
+  allOpps = (data && data.length) ? data : SAMPLES;
+
+  document.getElementById('map-count').textContent = `${allOpps.length} opportunities found`;
+  renderPins(allOpps);
+  renderSidebar(allOpps);
+}
+
+const urgencyColor = { high: '#c0392b', medium: '#d4840a', low: '#3d7a52' };
+
+function renderPins(list) {
+  // Clear old markers
+  Object.values(markers).forEach(m => map.removeLayer(m));
+  markers = {};
+
+  list.forEach(o => {
+    if (!o.lat || !o.lng) return;
+    const color = urgencyColor[o.urgency] || '#3d7a52';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:36px;height:36px;background:${color};border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;cursor:pointer">
+               <span style="transform:rotate(45deg);font-size:15px">${catEmoji(o.category)}</span>
+             </div>`,
+      iconSize: [36, 36], iconAnchor: [18, 36]
+    });
+    const m = L.marker([o.lat, o.lng], { icon }).addTo(map);
+    m.bindPopup(`
+      <div style="font-family:sans-serif;min-width:180px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${o.title}</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:8px">${o.org_name}</div>
+        <a href="detail.html?id=${o.id}" style="background:#2d5a3d;color:#fff;padding:5px 12px;border-radius:6px;text-decoration:none;font-size:12px">View details →</a>
+      </div>`);
+    m.on('click', () => highlightCard(o.id));
+    markers[o.id] = m;
+  });
+}
+
+function catEmoji(c) {
+  const map = { reforestation:'🌲', cleanup:'♻️', wildlife:'🦋', education:'📚', urban:'🌿', conservation:'🌊', community:'🤝' };
+  return map[c] || '🌱';
+}
+
+function renderSidebar(list) {
+  const sb = document.getElementById('map-sidebar');
+  if (!list.length) { sb.innerHTML = '<div class="loading">No results</div>'; return; }
+  sb.innerHTML = list.map(o => `
+    <div class="map-opp-card" id="mc-${o.id}" onclick="flyTo('${o.id}')">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <span style="font-size:22px;flex-shrink:0">${catEmoji(o.category)}</span>
+        <div>
+          <div class="map-opp-title">${o.title}</div>
+          <div class="map-opp-meta">${o.org_name} · ${o.date ? new Date(o.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'TBD'}</div>
+          <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap">
+            ${o.urgency==='high'?'<span class="chip chip-red" style="font-size:11px">Urgent</span>':''}
+            <a href="detail.html?id=${o.id}" class="chip chip-green" style="font-size:11px;text-decoration:none">View →</a>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function flyTo(id) {
+  const o = allOpps.find(x => x.id === id);
+  if (!o || !o.lat) return;
+  map.flyTo([o.lat, o.lng], 15, { duration: 1 });
+  markers[id]?.openPopup();
+  document.querySelectorAll('.map-opp-card').forEach(c => c.classList.remove('active'));
+  document.getElementById(`mc-${id}`)?.classList.add('active');
+}
+
+function highlightCard(id) {
+  document.querySelectorAll('.map-opp-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById(`mc-${id}`);
+  if (card) { card.classList.add('active'); card.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+}
+
+function filterMapCards() {
+  const q = document.getElementById('map-search').value.toLowerCase();
+  const filtered = q ? allOpps.filter(o => [o.title, o.org_name, o.category].join(' ').toLowerCase().includes(q)) : allOpps;
+  renderPins(filtered);
+  renderSidebar(filtered);
+  document.getElementById('map-count').textContent = `${filtered.length} opportunities found`;
+}
+
+const _iv = setInterval(() => { if (typeof currentUser !== 'undefined') { clearInterval(_iv); initMap(); } }, 80);
+</script>
+</body>
+</html>

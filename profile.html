@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voluntree — My Profile</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="page">
+
+  <!-- Hero -->
+  <div class="profile-hero fade-up" id="profile-hero">
+    <div class="profile-avatar-lg" id="p-avatar">?</div>
+    <div class="profile-info">
+      <h2 id="p-name">Loading…</h2>
+      <p id="p-email"></p>
+      <p id="p-location" style="margin-top:2px"></p>
+      <div class="badges">
+        <span class="role-pill" id="p-role"></span>
+        <span class="role-pill" id="p-member-since"></span>
+      </div>
+    </div>
+    <button class="btn btn-outline btn-sm" style="margin-left:auto;color:#fff;border-color:rgba(255,255,255,.4)" onclick="showEdit()">Edit profile</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row fade-up fade-up-1">
+    <div class="stat-card">
+      <div class="stat-label">Hours volunteered</div>
+      <div class="stat-value" id="ps-hours">0</div>
+      <div class="stat-sub">total</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Shifts completed</div>
+      <div class="stat-value" id="ps-shifts">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Organizations</div>
+      <div class="stat-value" id="ps-orgs">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Saved spots</div>
+      <div class="stat-value" id="ps-saved">0</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs fade-up fade-up-2">
+    <button class="tab-btn-line active" onclick="switchTab('saved')">Saved</button>
+    <button class="tab-btn-line" onclick="switchTab('hours')">Hours log</button>
+    <button class="tab-btn-line" onclick="switchTab('applications')">My applications</button>
+  </div>
+
+  <!-- Saved -->
+  <div id="tab-saved" class="tab-panel">
+    <div id="saved-list" class="grid-3"><div class="loading">Loading…</div></div>
+  </div>
+
+  <!-- Hours -->
+  <div id="tab-hours" class="tab-panel hidden">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+      <a href="log-hours.html" class="btn btn-primary btn-sm">+ Log hours</a>
+    </div>
+    <div id="hours-list"></div>
+  </div>
+
+  <!-- Applications -->
+  <div id="tab-applications" class="tab-panel hidden">
+    <div id="apps-list"><div class="loading">Loading…</div></div>
+  </div>
+
+</div>
+
+<!-- Edit modal -->
+<div id="edit-modal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit profile</h2>
+      <button class="modal-close" onclick="hideEdit()">×</button>
+    </div>
+    <div class="input-group">
+      <label>Full name</label>
+      <input type="text" id="e-name" placeholder="Your full name"/>
+    </div>
+    <div class="input-group">
+      <label>City / Neighborhood</label>
+      <input type="text" id="e-location" placeholder="e.g. Atlanta, GA"/>
+    </div>
+    <div class="input-group">
+      <label>Bio <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+      <textarea id="e-bio" rows="3" placeholder="Tell the community a bit about yourself and what drives you to volunteer…"></textarea>
+    </div>
+    <div class="input-group">
+      <label>Causes I care about</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px" id="cause-grid">
+        <label class="filter-chip" style="cursor:pointer"><input type="checkbox" value="reforestation" hidden/> 🌲 Reforestation</label>
+        <label class="filter-chip" style="cursor:pointer"><input type="checkbox" value="cleanup" hidden/> ♻️ Cleanup</label>
+        <label class="filter-chip" style="cursor:pointer"><input type="checkbox" value="wildlife" hidden/> 🦋 Wildlife</label>
+        <label class="filter-chip" style="cursor:pointer"><input type="checkbox" value="education" hidden/> 📚 Education</label>
+        <label class="filter-chip" style="cursor:pointer"><input type="checkbox" value="conservation" hidden/> 🌊 Conservation</label>
+        <label class="filter-chip" style="cursor:pointer"><input type="checkbox" value="urban" hidden/> 🏙️ Urban Green</label>
+        <label class="filter-chip" style="cursor:pointer"><input type="checkbox" value="community" hidden/> 🤝 Community</label>
+      </div>
+    </div>
+    <div id="edit-msg" class="msg hidden"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideEdit()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProfile()">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+function switchTab(t) {
+  ['saved','hours','applications'].forEach(tab => {
+    document.getElementById(`tab-${tab}`).classList.toggle('hidden', tab !== t);
+  });
+  document.querySelectorAll('.tab-btn-line').forEach((b,i) => {
+    b.classList.toggle('active', ['saved','hours','applications'][i] === t);
+  });
+  if (t === 'hours') loadHours();
+  if (t === 'applications') loadApplications();
+}
+
+async function loadProfile() {
+  const { data: prof } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+  currentProfile = prof;
+
+  const name = prof?.full_name || currentUser.user_metadata?.full_name || 'Volunteer';
+  const initials = name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+
+  document.getElementById('p-avatar').textContent  = initials;
+  document.getElementById('p-name').textContent    = name;
+  document.getElementById('p-email').textContent   = currentUser.email;
+  document.getElementById('p-location').textContent = prof?.location ? '📍 '+prof.location : '';
+  document.getElementById('p-role').textContent    = prof?.role === 'org' ? '🏢 Organization' : '🙋 Volunteer';
+  document.getElementById('p-member-since').textContent = '🌱 Member since ' + new Date(currentUser.created_at).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+
+  // Pre-fill edit form
+  document.getElementById('e-name').value     = name;
+  document.getElementById('e-location').value = prof?.location || '';
+  document.getElementById('e-bio').value       = prof?.bio || '';
+  if (prof?.causes) {
+    prof.causes.forEach(c => {
+      const cb = document.querySelector(`#cause-grid input[value="${c}"]`);
+      if (cb) { cb.checked = true; cb.closest('label').classList.add('active'); }
+    });
+  }
+  // Toggle cause chips
+  document.querySelectorAll('#cause-grid input').forEach(cb => {
+    cb.addEventListener('change', () => cb.closest('label').classList.toggle('active', cb.checked));
+  });
+}
+
+async function loadStats() {
+  const { data: hours } = await supabase.from('volunteer_hours').select('hours, org').eq('user_id', currentUser.id);
+  const { data: saved } = await supabase.from('saved_opportunities').select('id').eq('user_id', currentUser.id);
+  const total = hours?.reduce((s,r) => s + parseFloat(r.hours||0), 0) || 0;
+  document.getElementById('ps-hours').textContent  = Math.round(total*10)/10;
+  document.getElementById('ps-shifts').textContent = hours?.length || 0;
+  document.getElementById('ps-orgs').textContent   = new Set(hours?.map(r=>r.org)||[]).size;
+  document.getElementById('ps-saved').textContent  = saved?.length || 0;
+}
+
+async function loadSaved() {
+  const { data } = await supabase.from('saved_opportunities').select('opportunity_id').eq('user_id', currentUser.id);
+  const container = document.getElementById('saved-list');
+  if (!data || !data.length) { container.innerHTML = `<div class="empty-state"><span class="empty-icon">🤍</span><h3>Nothing saved yet</h3><p><a href="explore.html" style="color:var(--canopy)">Browse opportunities →</a></p></div>`; return; }
+  const ids = data.map(r => r.opportunity_id);
+  const { data: opps } = await supabase.from('opportunities').select('*').in('id', ids);
+  const SAMPLES = [
+    { id:'s1', title:'Piedmont Park Tree Planting', org_name:'Atlanta Urban Forest', category:'reforestation', urgency:'high', image_emoji:'🌲', date:'2026-03-28' },
+    { id:'s2', title:'Chattahoochee River Cleanup', org_name:'Chattahoochee Riverkeeper', category:'cleanup', urgency:'medium', image_emoji:'🌊', date:'2026-04-05' },
+  ];
+  const list = opps && opps.length ? opps : SAMPLES.filter(s => ids.includes(s.id));
+  container.innerHTML = list.map(o => `
+    <div class="opp-card urgency-${o.urgency}" onclick="window.location.href='detail.html?id=${o.id}'">
+      <div class="opp-card-img placeholder">${o.image_emoji||'🌿'}</div>
+      <div class="opp-card-body">
+        <div class="opp-card-org">${o.org_name}</div>
+        <div class="opp-card-title">${o.title}</div>
+        <div class="opp-card-meta"><span class="meta-pill">📅 ${o.date ? new Date(o.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'TBD'}</span></div>
+        <div style="margin-top:10px"><a href="detail.html?id=${o.id}" class="btn btn-primary btn-sm">View →</a></div>
+      </div>
+    </div>`).join('');
+}
+
+async function loadHours() {
+  const { data } = await supabase.from('volunteer_hours').select('*').eq('user_id', currentUser.id).order('date',{ascending:false});
+  const container = document.getElementById('hours-list');
+  if (!data || !data.length) { container.innerHTML = `<div class="empty-state"><span class="empty-icon">⏱</span><h3>No hours logged yet</h3><p><a href="log-hours.html" style="color:var(--canopy)">Log your first shift →</a></p></div>`; return; }
+  const catEmoji = { reforestation:'🌲', cleanup:'♻️', wildlife:'🦋', education:'📚', conservation:'🌊', urban:'🌿', community:'🤝', other:'⭐' };
+  container.innerHTML = data.map(r => `
+    <div class="hours-row" style="margin-bottom:8px">
+      <div class="hours-num">${r.hours}h</div>
+      <div class="hours-info">
+        <div class="hours-org">${r.org} ${r.category ? (catEmoji[r.category]||'') : ''}</div>
+        <div class="hours-date">${new Date(r.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})}</div>
+        ${r.notes ? `<div class="hours-note">${r.notes}</div>` : ''}
+      </div>
+      <button onclick="deleteHours('${r.id}')" style="color:var(--text-muted);background:none;border:none;cursor:pointer;font-size:18px;padding:4px" title="Delete">×</button>
+    </div>`).join('');
+}
+
+async function deleteHours(id) {
+  if (!confirm('Delete this entry?')) return;
+  await supabase.from('volunteer_hours').delete().eq('id', id);
+  loadHours(); loadStats();
+}
+
+async function loadApplications() {
+  const { data } = await supabase.from('applications').select('*, opportunities(title, org_name, date)').eq('volunteer_id', currentUser.id).order('created_at',{ascending:false});
+  const container = document.getElementById('apps-list');
+  if (!data || !data.length) { container.innerHTML = `<div class="empty-state"><span class="empty-icon">📬</span><h3>No applications yet</h3><p><a href="explore.html" style="color:var(--canopy)">Browse and apply →</a></p></div>`; return; }
+  const statusChip = s => s==='accepted' ? 'chip-green' : s==='declined' ? 'chip-red' : 'chip-amber';
+  container.innerHTML = data.map(a => `
+    <div class="hours-row" style="margin-bottom:8px">
+      <div style="font-size:22px">📋</div>
+      <div class="hours-info">
+        <div class="hours-org">${a.opportunities?.title || 'Unknown opportunity'}</div>
+        <div class="hours-date">${a.opportunities?.org_name || ''} ${a.opportunities?.date ? '· '+new Date(a.opportunities.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : ''}</div>
+        <div style="margin-top:4px"><span class="chip ${statusChip(a.status)}">${a.status}</span></div>
+      </div>
+    </div>`).join('');
+}
+
+function showEdit() { document.getElementById('edit-modal').classList.remove('hidden'); }
+function hideEdit() { document.getElementById('edit-modal').classList.add('hidden'); }
+
+async function saveProfile() {
+  const name     = document.getElementById('e-name').value.trim();
+  const location = document.getElementById('e-location').value.trim();
+  const bio      = document.getElementById('e-bio').value.trim();
+  const causes   = Array.from(document.querySelectorAll('#cause-grid input:checked')).map(cb => cb.value);
+  const msgEl    = document.getElementById('edit-msg');
+
+  const { error } = await supabase.from('profiles').upsert({ id: currentUser.id, full_name: name, email: currentUser.email, location, bio, causes, updated_at: new Date().toISOString() });
+  if (error) { msgEl.textContent = error.message; msgEl.className = 'msg msg-error'; return; }
+  msgEl.textContent = '✅ Profile saved!'; msgEl.className = 'msg msg-success';
+  setTimeout(() => { hideEdit(); loadProfile(); }, 1200);
+}
+
+const _iv = setInterval(() => {
+  if (typeof currentUser !== 'undefined' && currentUser) {
+    clearInterval(_iv);
+    loadProfile();
+    loadStats();
+    loadSaved();
+  }
+}, 80);
+</script>
+</body>
+</html>

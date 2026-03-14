@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voluntree — Explore Opportunities</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header fade-up">
+    <h1>Find opportunities 🌱</h1>
+    <p>Discover meaningful environmental and community volunteering near you.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row fade-up fade-up-1">
+    <div class="stat-card">
+      <div class="stat-label">Opportunities</div>
+      <div class="stat-value" id="stat-opps">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Organizations</div>
+      <div class="stat-value" id="stat-orgs">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Your saved</div>
+      <div class="stat-value" id="stat-saved">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Hours logged</div>
+      <div class="stat-value" id="stat-hours">—</div>
+    </div>
+  </div>
+
+  <!-- Search + view toggle -->
+  <div class="search-filter-bar fade-up fade-up-2">
+    <div class="search-wrap">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="search" placeholder="Search by title, org, skill, location…" oninput="renderCards()"/>
+    </div>
+    <select id="sort" onchange="renderCards()" style="max-width:180px">
+      <option value="newest">Newest first</option>
+      <option value="urgency">Most urgent</option>
+      <option value="volunteers">Most needed</option>
+    </select>
+    <div class="view-toggle">
+      <button class="view-btn active" id="btn-list" onclick="setView('list')" title="List view">☰</button>
+      <button class="view-btn" id="btn-grid" onclick="setView('grid')" title="Grid view">⊞</button>
+    </div>
+    <a href="map.html" class="btn btn-outline btn-sm">🗺 Map view</a>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-chips fade-up fade-up-2">
+    <button class="filter-chip active" onclick="toggleFilter(this,'all')">All categories</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'reforestation')">🌲 Reforestation</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'cleanup')">♻️ Cleanup</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'wildlife')">🦋 Wildlife</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'education')">📚 Eco-Education</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'conservation')">🌊 Conservation</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'urban')">🏙️ Urban Green</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'community')">🤝 Community</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'weekends')">📅 Weekends</button>
+    <button class="filter-chip" onclick="toggleFilter(this,'urgent')">🔴 Urgent</button>
+  </div>
+
+  <!-- Results header -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:13px;color:var(--text-muted)">
+    <span id="results-label">Loading…</span>
+  </div>
+
+  <!-- Cards -->
+  <div id="cards-container" class="grid-3">
+    <div class="loading">Loading opportunities…</div>
+  </div>
+
+</div>
+
+<!-- Apply modal -->
+<div id="apply-modal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Apply to volunteer</h2>
+      <button class="modal-close" onclick="closeApply()">×</button>
+    </div>
+    <div id="apply-opp-title" style="font-size:15px;color:var(--text-soft)"></div>
+    <div class="modal-divider"></div>
+    <div class="input-group">
+      <label>Why do you want to volunteer for this opportunity?</label>
+      <textarea id="apply-msg" placeholder="Tell the organization a little about yourself and why you're interested…" rows="4"></textarea>
+    </div>
+    <div class="input-group">
+      <label>Your availability</label>
+      <input type="text" id="apply-avail" placeholder="e.g. Weekends, Mon/Wed evenings…"/>
+    </div>
+    <div class="input-group">
+      <label>Phone number <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+      <input type="tel" id="apply-phone" placeholder="+1 (555) 000-0000"/>
+    </div>
+    <div id="apply-msg-out" class="msg hidden"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeApply()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitApply()">Send application</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+let allOpps = [];
+let savedIds = new Set();
+let activeFilters = new Set(['all']);
+let currentView = 'grid';
+let applyOppId = null;
+
+const SAMPLE_OPPS = [
+  { id:'s1', title:'Piedmont Park Tree Planting', org_name:'Atlanta Urban Forest', category:'reforestation', location:'Piedmont Park, Atlanta', date:'2026-03-28', time_start:'09:00', time_end:'13:00', volunteers_needed:20, volunteers_current:8, age_min:14, skills_required:['Physical fitness','Teamwork'], description:'Join us to plant 200 native trees in Piedmont Park. All tools and gloves provided. Lunch included for all volunteers.', urgency:'high', image_emoji:'🌲', contact_email:'info@atlantaurbanforest.org', contact_phone:'(404) 555-0110' },
+  { id:'s2', title:'Chattahoochee River Cleanup', org_name:'Chattahoochee Riverkeeper', category:'cleanup', location:'Palisades Unit, Atlanta', date:'2026-04-05', time_start:'08:00', time_end:'12:00', volunteers_needed:50, volunteers_current:23, age_min:12, skills_required:[], description:'Help remove trash and invasive plants from the Chattahoochee River banks. Family friendly! Trash bags and gloves provided.', urgency:'medium', image_emoji:'🌊', contact_email:'volunteer@chattahoochee.org', contact_phone:'(404) 555-0220' },
+  { id:'s3', title:'Butterfly Garden Restoration', org_name:'Georgia Wildlife Federation', category:'wildlife', location:'Stone Mountain Park', date:'2026-04-12', time_start:'10:00', time_end:'14:00', volunteers_needed:15, volunteers_current:15, age_min:16, skills_required:['Gardening','Plant identification'], description:'Restore a native butterfly habitat by removing invasive species and planting milkweed and wildflowers.', urgency:'low', image_emoji:'🦋', contact_email:'restore@gawildlife.org', contact_phone:'(404) 555-0330' },
+  { id:'s4', title:'Environmental Education at Schools', org_name:'EcoTeach Atlanta', category:'education', location:'Multiple schools, Atlanta', date:'2026-04-15', time_start:'14:00', time_end:'17:00', volunteers_needed:10, volunteers_current:3, age_min:18, skills_required:['Public speaking','Teaching'], description:'Lead interactive environmental science workshops for K–8 students. Training and materials fully provided. Recurring weekly commitment preferred.', urgency:'high', image_emoji:'📚', contact_email:'teach@ecoatlanta.org', contact_phone:'(404) 555-0440' },
+  { id:'s5', title:'Community Garden Build', org_name:'Westside Urban Farm', category:'urban', location:'Westside, Atlanta', date:'2026-04-19', time_start:'09:00', time_end:'15:00', volunteers_needed:30, volunteers_current:12, age_min:16, skills_required:['Construction','Carpentry'], description:'Help build raised garden beds and install irrigation in an underserved neighborhood. Tools provided. Wear work clothes.', urgency:'medium', image_emoji:'🌿', contact_email:'build@westsideurbanfarm.org', contact_phone:'(404) 555-0550' },
+  { id:'s6', title:'Marine Conservation Data Entry', org_name:'Ocean Atlanta', category:'conservation', location:'Remote / Online', date:'2026-04-22', time_start:'10:00', time_end:'14:00', volunteers_needed:8, volunteers_current:2, age_min:18, skills_required:['Data entry','Spreadsheets'], description:'Help scientists catalog water quality samples and biodiversity data from the Georgia coast. Remote-friendly. Must have a computer.', urgency:'medium', image_emoji:'🌊', contact_email:'data@oceanatlanta.org', contact_phone:'(404) 555-0660' },
+];
+
+async function loadData() {
+  // Load from Supabase, fall back to samples
+  const { data: opps } = await supabase
+    .from('opportunities')
+    .select('*, profiles(full_name)')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+
+  allOpps = (opps && opps.length) ? opps : SAMPLE_OPPS;
+
+  // Load saved
+  if (currentUser) {
+    const { data: sv } = await supabase.from('saved_opportunities').select('opportunity_id').eq('user_id', currentUser.id);
+    if (sv) sv.forEach(r => savedIds.add(r.opportunity_id));
+  }
+
+  loadStats();
+  renderCards();
+}
+
+async function loadStats() {
+  document.getElementById('stat-opps').textContent  = allOpps.length;
+  const orgs = new Set(allOpps.map(o => o.org_name)).size;
+  document.getElementById('stat-orgs').textContent  = orgs;
+  document.getElementById('stat-saved').textContent = savedIds.size;
+
+  if (currentUser) {
+    const { data } = await supabase.from('volunteer_hours').select('hours').eq('user_id', currentUser.id);
+    const total = data?.reduce((s,r) => s + parseFloat(r.hours||0), 0) || 0;
+    document.getElementById('stat-hours').textContent = Math.round(total * 10) / 10;
+  } else {
+    document.getElementById('stat-hours').textContent = '0';
+  }
+}
+
+function toggleFilter(el, val) {
+  if (val === 'all') {
+    activeFilters = new Set(['all']);
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+  } else {
+    activeFilters.delete('all');
+    document.querySelector('.filter-chip').classList.remove('active');
+    el.classList.contains('active') ? (el.classList.remove('active'), activeFilters.delete(val)) : (el.classList.add('active'), activeFilters.add(val));
+    if (activeFilters.size === 0) { activeFilters.add('all'); document.querySelector('.filter-chip').classList.add('active'); }
+  }
+  renderCards();
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('btn-list').classList.toggle('active', v === 'list');
+  document.getElementById('btn-grid').classList.toggle('active', v === 'grid');
+  renderCards();
+}
+
+function renderCards() {
+  const q  = document.getElementById('search').value.toLowerCase();
+  const sv = document.getElementById('sort').value;
+
+  let list = allOpps.filter(o => {
+    const matchF = activeFilters.has('all') || activeFilters.has(o.category) ||
+      (activeFilters.has('weekends') && /sat|sun/i.test(o.time_start)) ||
+      (activeFilters.has('urgent') && o.urgency === 'high');
+    const matchQ = !q || [o.title, o.org_name, o.location, o.description, ...(o.skills_required||[])].join(' ').toLowerCase().includes(q);
+    return matchF && matchQ;
+  });
+
+  if (sv === 'urgency') list.sort((a,b) => ['high','medium','low'].indexOf(a.urgency) - ['high','medium','low'].indexOf(b.urgency));
+  else if (sv === 'volunteers') list.sort((a,b) => (b.volunteers_needed - b.volunteers_current) - (a.volunteers_needed - a.volunteers_current));
+
+  document.getElementById('results-label').textContent = `${list.length} opportunit${list.length !== 1 ? 'ies' : 'y'} found`;
+  const container = document.getElementById('cards-container');
+  container.className = currentView === 'grid' ? 'grid-3' : '';
+
+  if (!list.length) {
+    container.innerHTML = `<div class="empty-state"><span class="empty-icon">🔍</span><h3>No results found</h3><p>Try different filters or search terms.</p></div>`;
+    return;
+  }
+
+  const spotsLeft = o => Math.max(0, (o.volunteers_needed || 0) - (o.volunteers_current || 0));
+  const urgencyChip = u => u === 'high'
+    ? '<span class="chip chip-red">🔴 Urgent</span>'
+    : u === 'medium' ? '<span class="chip chip-amber">🟡 Open</span>'
+    : '<span class="chip chip-green">🟢 Flexible</span>';
+
+  container.innerHTML = list.map(o => `
+    <div class="opp-card urgency-${o.urgency}" onclick="window.location.href='detail.html?id=${o.id}'">
+      <div class="opp-card-img placeholder">${o.image_emoji || '🌿'}</div>
+      <div class="opp-card-body">
+        <div class="opp-card-org">${o.org_name || o.profiles?.full_name || 'Organization'}</div>
+        <div class="opp-card-title">${o.title}</div>
+        <div class="opp-card-meta">
+          <span class="meta-pill">📍 ${o.location}</span>
+          <span class="meta-pill">📅 ${o.date ? new Date(o.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'TBD'}</span>
+          <span class="meta-pill">🕐 ${o.time_start || ''}${o.time_end ? '–'+o.time_end : ''}</span>
+          ${o.age_min ? `<span class="meta-pill">🔞 Age ${o.age_min}+</span>` : ''}
+        </div>
+        <div class="opp-card-chips">
+          ${urgencyChip(o.urgency)}
+          <span class="chip chip-stone">👥 ${spotsLeft(o)} spots left</span>
+          ${(o.skills_required||[]).slice(0,2).map(s=>`<span class="chip chip-bark">${s}</span>`).join('')}
+        </div>
+        <div style="font-size:13px;color:var(--text-soft);line-height:1.5;margin-bottom:10px">${(o.description||'').slice(0,110)}…</div>
+        <div class="opp-card-footer">
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openApply('${o.id}','${(o.title||'').replace(/'/g,"\\'")}')">Apply</button>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="event.stopPropagation();toggleSave('${o.id}',this)" title="Save">
+            ${savedIds.has(o.id) ? '🌿' : '🤍'}
+          </button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+async function toggleSave(id, btn) {
+  if (!currentUser) return;
+  if (savedIds.has(id)) {
+    savedIds.delete(id);
+    await supabase.from('saved_opportunities').delete().eq('user_id',currentUser.id).eq('opportunity_id',id);
+    btn.textContent = '🤍';
+  } else {
+    savedIds.add(id);
+    await supabase.from('saved_opportunities').insert({ user_id: currentUser.id, opportunity_id: id });
+    btn.textContent = '🌿';
+  }
+  document.getElementById('stat-saved').textContent = savedIds.size;
+}
+
+function openApply(id, title) {
+  applyOppId = id;
+  document.getElementById('apply-opp-title').textContent = title;
+  document.getElementById('apply-msg-out').className = 'msg hidden';
+  document.getElementById('apply-msg').value = '';
+  document.getElementById('apply-avail').value = '';
+  document.getElementById('apply-phone').value = '';
+  document.getElementById('apply-modal').classList.remove('hidden');
+}
+function closeApply() { document.getElementById('apply-modal').classList.add('hidden'); }
+
+async function submitApply() {
+  const msg   = document.getElementById('apply-msg').value.trim();
+  const avail = document.getElementById('apply-avail').value.trim();
+  const phone = document.getElementById('apply-phone').value.trim();
+  const out   = document.getElementById('apply-msg-out');
+  if (!msg) { out.textContent='Please write a short message.'; out.className='msg msg-error'; return; }
+
+  const { error } = await supabase.from('applications').insert({
+    opportunity_id: applyOppId,
+    volunteer_id:   currentUser.id,
+    message:        msg,
+    availability:   avail,
+    phone,
+    status: 'pending'
+  });
+  if (error) { out.textContent = error.message; out.className='msg msg-error'; return; }
+  out.textContent = '✅ Application sent! The organization will be in touch.';
+  out.className = 'msg msg-success';
+  setTimeout(closeApply, 2200);
+}
+
+// Wait for auth then load
+const _iv = setInterval(() => {
+  if (typeof currentUser !== 'undefined') { clearInterval(_iv); loadData(); }
+}, 80);
+</script>
+</body>
+</html>

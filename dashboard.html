@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voluntree — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="navbar-root"></div>
+
+<div class="page">
+  <div class="page-header fade-up">
+    <h1>Organization dashboard 📊</h1>
+    <p>Manage your posted opportunities and volunteer applications.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row fade-up fade-up-1">
+    <div class="stat-card">
+      <div class="stat-label">Active posts</div>
+      <div class="stat-value" id="st-active">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total applications</div>
+      <div class="stat-value" id="st-apps">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pending review</div>
+      <div class="stat-value" id="st-pending">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Accepted</div>
+      <div class="stat-value" id="st-accepted">—</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs fade-up fade-up-2">
+    <button class="tab-btn-line active" onclick="switchTab('posts')">My Posts</button>
+    <button class="tab-btn-line" onclick="switchTab('applications')">Applications</button>
+  </div>
+
+  <!-- Posts tab -->
+  <div id="tab-posts" class="tab-panel">
+    <div class="section-header">
+      <span id="posts-label" style="font-size:13px;color:var(--text-muted)"></span>
+      <a href="post.html" class="btn btn-primary btn-sm">+ New opportunity</a>
+    </div>
+    <div id="posts-list" class="grid-2"><div class="loading">Loading…</div></div>
+  </div>
+
+  <!-- Applications tab -->
+  <div id="tab-applications" class="tab-panel hidden">
+    <div style="margin-bottom:14px">
+      <select id="app-filter-opp" onchange="loadApplications()" style="max-width:300px">
+        <option value="">All opportunities</option>
+      </select>
+    </div>
+    <div id="apps-list"><div class="loading">Loading…</div></div>
+  </div>
+</div>
+
+<!-- Delete confirmation -->
+<div id="del-modal" class="modal-backdrop hidden">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><h2>Delete opportunity?</h2></div>
+    <p style="font-size:14px;color:var(--text-soft)">This will permanently delete the opportunity and all its applications. This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('del-modal').classList.add('hidden')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/auth-guard.js"></script>
+<script>
+let myPosts = [];
+let deleteId = null;
+
+function switchTab(t) {
+  document.getElementById('tab-posts').classList.toggle('hidden', t !== 'posts');
+  document.getElementById('tab-applications').classList.toggle('hidden', t !== 'applications');
+  document.querySelectorAll('.tab-btn-line').forEach((b,i) => b.classList.toggle('active', (i===0&&t==='posts')||(i===1&&t==='applications')));
+  if (t === 'applications') loadApplications();
+}
+
+async function loadDashboard() {
+  const { data: posts } = await supabase.from('opportunities').select('*').eq('user_id', currentUser.id).order('created_at',{ascending:false});
+  myPosts = posts || [];
+
+  const { data: apps } = await supabase.from('applications').select('*').in('opportunity_id', myPosts.map(p=>p.id));
+  const pending  = apps?.filter(a=>a.status==='pending').length || 0;
+  const accepted = apps?.filter(a=>a.status==='accepted').length || 0;
+
+  document.getElementById('st-active').textContent   = myPosts.filter(p=>p.status==='active').length;
+  document.getElementById('st-apps').textContent     = apps?.length || 0;
+  document.getElementById('st-pending').textContent  = pending;
+  document.getElementById('st-accepted').textContent = accepted;
+
+  renderPosts();
+  populateOppFilter();
+}
+
+function renderPosts() {
+  document.getElementById('posts-label').textContent = `${myPosts.length} opportunit${myPosts.length!==1?'ies':'y'}`;
+  const container = document.getElementById('posts-list');
+  if (!myPosts.length) {
+    container.innerHTML = `<div class="empty-state"><span class="empty-icon">📋</span><h3>No posts yet</h3><p>Post your first opportunity to get started.</p><a href="post.html" class="btn btn-primary" style="margin-top:1rem">Post opportunity</a></div>`;
+    return;
+  }
+  container.innerHTML = myPosts.map(p => {
+    const spotsLeft = Math.max(0, (p.volunteers_needed||0) - (p.volunteers_current||0));
+    const pct = Math.round(((p.volunteers_current||0)/Math.max(1,p.volunteers_needed||1))*100);
+    return `
+    <div class="card urgency-${p.urgency}">
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--moss);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">${p.category||''}</div>
+            <h3 style="font-size:16px;color:var(--forest)">${p.title}</h3>
+          </div>
+          <span class="chip ${p.status==='active'?'chip-green':'chip-stone'}">${p.status}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-soft);margin-bottom:10px">
+          📍 ${p.location} · 📅 ${p.date ? new Date(p.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'TBD'}
+        </div>
+        <!-- Volunteer fill bar -->
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:4px">
+            <span>Volunteers</span><span>${p.volunteers_current||0}/${p.volunteers_needed||0}</span>
+          </div>
+          <div style="background:var(--stone);border-radius:999px;height:6px;overflow:hidden">
+            <div style="background:var(--leaf);height:100%;width:${pct}%;border-radius:999px"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a href="detail.html?id=${p.id}" class="btn btn-outline btn-sm">View</a>
+          <button class="btn btn-ghost btn-sm" onclick="toggleStatus('${p.id}','${p.status}')">${p.status==='active'?'Pause':'Reactivate'}</button>
+          <button class="btn btn-danger btn-sm" onclick="askDelete('${p.id}')">Delete</button>
+        </div>
+      </div>
+    </div>`}).join('');
+}
+
+function populateOppFilter() {
+  const sel = document.getElementById('app-filter-opp');
+  sel.innerHTML = '<option value="">All opportunities</option>' + myPosts.map(p=>`<option value="${p.id}">${p.title}</option>`).join('');
+}
+
+async function loadApplications() {
+  const filterId = document.getElementById('app-filter-opp').value;
+  let query = supabase.from('applications').select('*, profiles(full_name, email)').in('opportunity_id', myPosts.map(p=>p.id)).order('created_at',{ascending:false});
+  if (filterId) query = query.eq('opportunity_id', filterId);
+  const { data: apps } = await query;
+  const container = document.getElementById('apps-list');
+  if (!apps || !apps.length) {
+    container.innerHTML = `<div class="empty-state"><span class="empty-icon">📬</span><h3>No applications yet</h3><p>Applications from volunteers will appear here.</p></div>`;
+    return;
+  }
+  const oppMap = Object.fromEntries(myPosts.map(p=>[p.id, p.title]));
+  container.innerHTML = apps.map(a => {
+    const name = a.profiles?.full_name || 'Volunteer';
+    const initials = name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+    const statusChip = a.status==='accepted' ? 'chip-green' : a.status==='declined' ? 'chip-red' : 'chip-amber';
+    return `
+    <div class="applicant-row" style="margin-bottom:8px;flex-wrap:wrap;gap:10px">
+      <div class="applicant-avatar">${initials}</div>
+      <div class="applicant-info">
+        <div class="applicant-name">${name}</div>
+        <div class="applicant-meta">${a.profiles?.email||''} ${a.phone?'· '+a.phone:''}</div>
+        <div style="font-size:13px;color:var(--text-soft);margin-top:3px">For: <strong>${oppMap[a.opportunity_id]||'Unknown'}</strong></div>
+        ${a.message?`<div style="font-size:13px;color:var(--text-mid);margin-top:4px;font-style:italic">"${a.message}"</div>`:''}
+        ${a.availability?`<div style="font-size:12px;color:var(--text-muted);margin-top:2px">📅 ${a.availability}</div>`:''}
+      </div>
+      <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <span class="chip ${statusChip}">${a.status}</span>
+        <div style="display:flex;gap:6px">
+          ${a.status!=='accepted'?`<button class="btn btn-primary btn-sm" onclick="updateApp('${a.id}','accepted','${a.opportunity_id}')">Accept</button>`:''}
+          ${a.status!=='declined'?`<button class="btn btn-danger btn-sm" onclick="updateApp('${a.id}','declined','${a.opportunity_id}')">Decline</button>`:''}
+        </div>
+      </div>
+    </div>`}).join('');
+}
+
+async function updateApp(appId, status, oppId) {
+  await supabase.from('applications').update({ status }).eq('id', appId);
+  // Update volunteer count if accepted
+  if (status === 'accepted') {
+    const opp = myPosts.find(p => p.id === oppId);
+    if (opp) await supabase.from('opportunities').update({ volunteers_current: (opp.volunteers_current||0)+1 }).eq('id', oppId);
+  }
+  loadDashboard();
+}
+
+async function toggleStatus(id, current) {
+  const newStatus = current === 'active' ? 'paused' : 'active';
+  await supabase.from('opportunities').update({ status: newStatus }).eq('id', id);
+  loadDashboard();
+}
+
+function askDelete(id) { deleteId = id; document.getElementById('del-modal').classList.remove('hidden'); }
+
+async function confirmDelete() {
+  await supabase.from('applications').delete().eq('opportunity_id', deleteId);
+  await supabase.from('opportunities').delete().eq('id', deleteId);
+  document.getElementById('del-modal').classList.add('hidden');
+  loadDashboard();
+}
+
+const _iv = setInterval(() => {
+  if (typeof currentUser !== 'undefined' && currentProfile !== undefined) {
+    clearInterval(_iv);
+    if (currentProfile?.role !== 'org') window.location.href = 'explore.html';
+    else loadDashboard();
+  }
+}, 80);
+</script>
+</body>
+</html>

@@ -17,62 +17,36 @@
   </div>
 
   <div class="auth-tabs">
-    <button class="auth-tab active" onclick="showTab('login')">Sign in</button>
-    <button class="auth-tab" onclick="showTab('signup')">Join free</button>
+    <button type="button" class="auth-tab active" onclick="showTab('login')">Sign in</button>
+    <button type="button" class="auth-tab" onclick="showTab('signup')">Join free</button>
   </div>
 
   <div id="auth-msg" class="msg hidden"></div>
 
   <!-- LOGIN -->
   <div id="tab-login" class="auth-form">
-    <button class="google-btn" onclick="googleAuth()">
+    <button type="button" class="google-btn" onclick="googleAuth()">
       <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z"/></svg>
       Continue with Google
     </button>
     <div class="auth-divider"><span>or</span></div>
-    <div class="input-group">
-      <input type="email" id="l-email" placeholder="Email address"/>
-    </div>
-    <div class="input-group">
-      <input type="password" id="l-pass" placeholder="Password"/>
-    </div>
-    <button class="btn btn-primary btn-full" onclick="emailLogin()">Sign in</button>
-    <button class="btn btn-ghost btn-sm btn-full" onclick="forgotPassword()" style="margin-top:-4px">Forgot password?</button>
+    <input type="email" id="l-email" placeholder="Email address"/>
+    <input type="password" id="l-pass" placeholder="Password" onkeydown="if(event.key==='Enter') emailLogin()"/>
+    <button type="button" class="btn btn-primary btn-full" onclick="emailLogin()">Sign in</button>
+    <button type="button" class="btn btn-ghost btn-sm btn-full" onclick="forgotPassword()" style="margin-top:-4px">Forgot password?</button>
   </div>
 
   <!-- SIGNUP -->
   <div id="tab-signup" class="auth-form hidden">
-    <button class="google-btn" onclick="googleAuth()">
+    <button type="button" class="google-btn" onclick="googleAuth()">
       <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z"/></svg>
       Sign up with Google
     </button>
     <div class="auth-divider"><span>or</span></div>
-    <div class="input-group">
-      <input type="text" id="s-name" placeholder="Full name"/>
-    </div>
-    <div class="input-group">
-      <input type="email" id="s-email" placeholder="Email address"/>
-    </div>
-    <div class="input-group">
-      <input type="password" id="s-pass" placeholder="Password (min. 6 chars)"/>
-    </div>
-    <!-- Role selector -->
-    <div class="input-group">
-      <label>I want to…</label>
-      <div class="role-select-row">
-        <div class="role-option selected" id="role-volunteer" onclick="selectRole('volunteer')">
-          <span class="role-icon">🙋</span>
-          <div class="role-name">Volunteer</div>
-          <div class="role-desc">Find & apply to opportunities</div>
-        </div>
-        <div class="role-option" id="role-org" onclick="selectRole('org')">
-          <span class="role-icon">🏢</span>
-          <div class="role-name">Organization</div>
-          <div class="role-desc">Post & manage opportunities</div>
-        </div>
-      </div>
-    </div>
-    <button class="btn btn-primary btn-full" onclick="emailSignup()">Create account</button>
+    <input type="text" id="s-name" placeholder="Full name"/>
+    <input type="email" id="s-email" placeholder="Email address"/>
+    <input type="password" id="s-pass" placeholder="Password (min. 6 chars)" onkeydown="if(event.key==='Enter') emailSignup()"/>
+    <button type="button" class="btn btn-primary btn-full" onclick="emailSignup()">Create account</button>
   </div>
 
   <p class="auth-footer">By joining you agree to our <a href="#">Terms</a> &amp; <a href="#">Privacy Policy</a></p>
@@ -80,14 +54,6 @@
 
 <script src="js/supabase-config.js"></script>
 <script>
-let selectedRole = 'volunteer';
-
-function selectRole(r) {
-  selectedRole = r;
-  document.getElementById('role-volunteer').classList.toggle('selected', r === 'volunteer');
-  document.getElementById('role-org').classList.toggle('selected', r === 'org');
-}
-
 function showTab(t) {
   document.getElementById('tab-login').classList.toggle('hidden', t !== 'login');
   document.getElementById('tab-signup').classList.toggle('hidden', t !== 'signup');
@@ -96,15 +62,17 @@ function showTab(t) {
   document.getElementById('auth-msg').className = 'msg hidden';
 }
 
-function showMsg(txt, type='error') {
+function showMsg(txt, type = 'error') {
   const el = document.getElementById('auth-msg');
-  el.textContent = txt; el.className = `msg msg-${type}`;
+  el.textContent = txt;
+  el.className = `msg msg-${type}`;
 }
 
 async function emailLogin() {
   const email = document.getElementById('l-email').value.trim();
   const pass  = document.getElementById('l-pass').value;
   if (!email || !pass) return showMsg('Please fill in all fields.');
+  showMsg('Signing in…', 'info');
   const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
   if (error) return showMsg(error.message);
   window.location.href = 'explore.html';
@@ -116,10 +84,14 @@ async function emailSignup() {
   const pass  = document.getElementById('s-pass').value;
   if (!name || !email || !pass) return showMsg('Please fill in all fields.');
   if (pass.length < 6) return showMsg('Password must be at least 6 characters.');
-  const { data, error } = await supabase.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
+  showMsg('Creating your account…', 'info');
+  const { data, error } = await supabase.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: name } }
+  });
   if (error) return showMsg(error.message);
   if (data.user) {
-    await supabase.from('profiles').upsert({ id: data.user.id, full_name: name, email, role: selectedRole });
+    await supabase.from('profiles').upsert({ id: data.user.id, full_name: name, email });
   }
   if (!data.session) return showMsg('Check your email to confirm your account!', 'success');
   window.location.href = 'explore.html';
@@ -136,13 +108,17 @@ async function googleAuth() {
 async function forgotPassword() {
   const email = document.getElementById('l-email').value.trim();
   if (!email) return showMsg('Enter your email above first.');
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/index.html' });
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/index.html'
+  });
   if (error) return showMsg(error.message);
-  showMsg('Password reset email sent!', 'success');
+  showMsg('Password reset email sent! Check your inbox.', 'success');
 }
 
 // Redirect if already logged in
-supabase.auth.getSession().then(({ data }) => { if (data.session) window.location.href = 'explore.html'; });
+supabase.auth.getSession().then(({ data }) => {
+  if (data.session) window.location.href = 'explore.html';
+});
 </script>
 </body>
 </html>

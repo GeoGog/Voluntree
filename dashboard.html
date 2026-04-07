@@ -214,7 +214,7 @@ async function confirmDelete() {
 const _iv = setInterval(() => {
   if (typeof currentUser !== 'undefined' && currentProfile !== undefined) {
     clearInterval(_iv);
-    if (currentProfile?.role !== 'org') window.location.href = 'explore.html';
+    
     else loadDashboard();
   }
 }, 80);

@@ -46,7 +46,7 @@
     <input type="text" id="s-name" placeholder="Full name"/>
     <input type="email" id="s-email" placeholder="Email address"/>
     <input type="password" id="s-pass" placeholder="Password (min. 6 chars)" onkeydown="if(event.key==='Enter') emailSignup()"/>
-    <button type="button" class="btn btn-primary btn-full" onclick="emailSignup()">Create account</button>
+    <button type="button" id="signup-btn" class="btn btn-primary btn-full" onclick="emailSignup()">Create account</button>
   </div>
 
   <p class="auth-footer">By joining you agree to our <a href="#">Terms</a> &amp; <a href="#">Privacy Policy</a></p>
@@ -68,33 +68,65 @@ function showMsg(txt, type = 'error') {
   el.className = `msg msg-${type}`;
 }
 
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.textContent = loading ? 'Please wait…' : (btnId === 'signup-btn' ? 'Create account' : 'Sign in');
+}
+
 async function emailLogin() {
   const email = document.getElementById('l-email').value.trim();
   const pass  = document.getElementById('l-pass').value;
   if (!email || !pass) return showMsg('Please fill in all fields.');
   showMsg('Signing in…', 'info');
-  const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
   if (error) return showMsg(error.message);
-  window.location.href = 'explore.html';
+  if (data.session) window.location.href = 'explore.html';
 }
 
 async function emailSignup() {
   const name  = document.getElementById('s-name').value.trim();
   const email = document.getElementById('s-email').value.trim();
   const pass  = document.getElementById('s-pass').value;
-  if (!name || !email || !pass) return showMsg('Please fill in all fields.');
+
+  if (!name)  return showMsg('Please enter your full name.');
+  if (!email) return showMsg('Please enter your email address.');
+  if (!pass)  return showMsg('Please enter a password.');
   if (pass.length < 6) return showMsg('Password must be at least 6 characters.');
+
+  setLoading('signup-btn', true);
   showMsg('Creating your account…', 'info');
+
   const { data, error } = await supabase.auth.signUp({
-    email, password: pass,
+    email,
+    password: pass,
     options: { data: { full_name: name } }
   });
-  if (error) return showMsg(error.message);
-  if (data.user) {
-    await supabase.from('profiles').upsert({ id: data.user.id, full_name: name, email });
+
+  setLoading('signup-btn', false);
+
+  if (error) {
+    return showMsg(error.message);
   }
-  if (!data.session) return showMsg('Check your email to confirm your account!', 'success');
-  window.location.href = 'explore.html';
+
+  // User created — save profile regardless of email confirmation
+  if (data.user) {
+    await supabase.from('profiles').upsert({
+      id: data.user.id,
+      full_name: name,
+      email: email
+    });
+  }
+
+  // If email confirmation is OFF → session exists → go straight in
+  if (data.session) {
+    window.location.href = 'explore.html';
+    return;
+  }
+
+  // If email confirmation is ON → tell the user to check email
+  showMsg('✅ Account created! Check your email and click the confirmation link, then come back to sign in.', 'success');
 }
 
 async function googleAuth() {
@@ -107,7 +139,7 @@ async function googleAuth() {
 
 async function forgotPassword() {
   const email = document.getElementById('l-email').value.trim();
-  if (!email) return showMsg('Enter your email above first.');
+  if (!email) return showMsg('Enter your email address above first.');
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: window.location.origin + '/index.html'
   });
